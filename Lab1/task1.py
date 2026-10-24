@@ -49,23 +49,13 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         pass
     finally:
         writer.close()
-        try:
-            await writer.wait_closed()
-        except ConnectionError:
-            pass
 
 
 async def main():
-    server = await asyncio.start_server(
-        handle, HOST, PORT
-    )
-    print(f"Listening on {server.sockets}")
+    server = await asyncio.start_server(handle, HOST, PORT)
     async with server:
         await server.serve_forever()
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())

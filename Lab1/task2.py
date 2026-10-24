@@ -1,5 +1,4 @@
 import json
-import os
 import re
 import socket
 import threading
@@ -7,7 +6,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 PORT = 8080
-MAX_BODY = 1 << 20
 
 notes: dict[int, str] = {}
 next_id = 1
@@ -16,7 +14,6 @@ lock = threading.Lock()
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "MiniAPI/1.0"
 
     def send_json(self, status, payload=None, extra=None):
         body = b"" if payload is None else json.dumps(payload).encode("utf-8")
@@ -38,23 +35,14 @@ class Handler(BaseHTTPRequestHandler):
         self.error(405, "method not allowed", {"Allow": allow})
 
     def read_body(self):
-        """Always consume the body so keep-alive connections stay in sync."""
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = 0
-        if length < 0:
-            length = 0
-        if length > MAX_BODY:
-            self.close_connection = True
-            return None
-        return self.rfile.read(length) if length else b""
+        return self.rfile.read(max(length, 0))
 
     def dispatch(self):
         body = self.read_body()
-        if body is None:
-            return self.error(413, "body too large")
-
         parts = urlsplit(self.path)
         path, method = parts.path, self.command
 
@@ -119,45 +107,13 @@ class Handler(BaseHTTPRequestHandler):
     do_GET = do_POST = do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = dispatch
 
 
-def claim_port_exclusively(sock):
-    """Fail loudly if something else already uses the port.
-
-    On Windows, SO_REUSEADDR lets two programs bind the same port (the old one
-    keeps getting the requests), so use SO_EXCLUSIVEADDRUSE there instead.
-    """
-    if os.name == "nt":
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-
-
 class Server(ThreadingHTTPServer):
-    daemon_threads = True
-    allow_reuse_address = os.name != "nt"
     address_family = socket.AF_INET6
 
     def server_bind(self):
         self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        claim_port_exclusively(self.socket)
         super().server_bind()
 
 
-def make_server():
-    try:
-        return Server(("::", PORT), Handler)
-    except OSError:
-        class V4(ThreadingHTTPServer):
-            daemon_threads = True
-            allow_reuse_address = os.name != "nt"
-
-            def server_bind(self):
-                claim_port_exclusively(self.socket)
-                super().server_bind()
-        return V4(("0.0.0.0", PORT), Handler)
-
-
 if __name__ == "__main__":
-    srv = make_server()
-    print(f"Listening on port {PORT}")
-    try:
-        srv.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    Server(("::", PORT), Handler).serve_forever()
