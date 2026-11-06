@@ -92,7 +92,7 @@ def setup(auth_file):
     with open(auth_file, "r", encoding="utf-8", errors="replace") as f:
         content = f.read().strip()
     if not re.fullmatch(r"descriptor:x25519:[A-Z2-7]{52}", content):
-        sys.exit("Invalid netsec.auth format")
+        sys.exit("Invalid netesc.auth format")
 
     os.makedirs(AUTH_DIR, exist_ok=True)
     name = os.path.basename(auth_file)
