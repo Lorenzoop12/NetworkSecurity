@@ -20,4 +20,5 @@ print(mine[["tcp.stream", "n", "hex"]])
 
 pieces = mine.drop_duplicates("n").sort_values("n")["hex"]
 token = "".join(pieces)
-print(len(token), token)
+
+print(f"netsec{{{token}}}")
